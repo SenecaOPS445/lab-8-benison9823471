@@ -1,0 +1,66 @@
+---
+- name: Configure OPS445 Lab VM for bpjogi
+  hosts: vmlab
+  user: student
+  become: yes  # Run all tasks with sudo
+  vars:
+    seneca_id: "bpjogi"  # Your Seneca username
+    labs: ['lab1', 'lab2', 'lab3', 'lab4', 'lab5', 'lab6', 'lab7', 'lab8']
+
+  tasks:
+    # 1. Update Apache (httpd)
+    - name: Ensure Apache is updated to latest version
+      yum:
+        name: httpd
+        state: latest
+      notify: restart apache
+
+    # 2. Install EPEL repository if missing
+    - name: Install EPEL repository
+      yum:
+        name: epel-release
+        state: present
+
+    # 3. Remove 'tree' package if installed
+    - name: Remove tree package
+      yum:
+        name: tree
+        state: absent
+
+    # 4. Set hostname to bpjogi
+    - name: Set hostname to Seneca ID
+      hostname:
+        name: "bpjogi"
+      when: ansible_hostname != "bpjogi"
+
+    # 5. Create bpjogi user with sudo access
+    - name: Create user bpjogi with sudo
+      user:
+        name: bpjogi
+        groups: wheel
+        shell: /bin/bash
+        create_home: yes
+        password: "{{ 'Benbeni@2005' | password_hash('sha512') }}"
+
+    # 6. Configure SSH key for bpjogi
+    - name: Set up authorized key for bpjogi
+      authorized_key:
+        user: bpjogi
+        state: present
+        key: "{{ lookup('file', '/home/bpjogi/.ssh/id_rsa.pub') }}"
+
+    # 7. Create lab directory structure
+    - name: Create lab directories for bpjogi
+      file:
+        path: "/home/bpjogi/ops445/{{ item }}"
+        state: directory
+        owner: bpjogi
+        group: bpjogi
+        mode: '0755'
+      loop: "{{ labs }}"
+
+  handlers:
+    - name: restart apache
+      service:
+        name: httpd
+        state: restarted
